@@ -3,8 +3,8 @@ import requests
 from collections import defaultdict, Counter
 
 class MarkdownAnalyzer:
-    def __init__(self, file_path):
-        with open(file_path, 'r') as file:
+    def __init__(self, file_path, encoding='utf-8'):
+        with open(file_path, 'r', encoding=encoding) as file:
             self.lines = file.readlines()
             
     def identify_headers(self):
@@ -162,19 +162,10 @@ class MarkdownAnalyzer:
     
     def identify_tables(self):
         result = defaultdict(list)
-        table_pattern = re.compile(r'^ {0,3}\|(?P<table_head>.+)\|[ \t]*\n' +
-                                   r' {0,3}\|(?P<table_align> *[-:]+[-| :]*)\|[ \t]*\n' +
-                                   r'(?P<table_body>(?: {0,3}\|.*\|[ \t]*(?:\n|$))*)\n*')
-        nptable_pattern = re.compile(r'^ {0,3}(?P<nptable_head>\S.*\|.*)\n' +
-                                     r' {0,3}(?P<nptable_align>[-:]+ *\|[-| :]*)\n' +
-                                     r'(?P<nptable_body>(?:.*\|.*(?:\n|$))*)\n*')
-        
-        text = "".join(self.lines)
-        matches_table = re.findall(table_pattern, text)
-        matches_nptable = re.findall(nptable_pattern, text)
-        for match in matches_table + matches_nptable:
-            result["Table"].append(match)
-            
+        table_pattern = re.compile(r'^\|.*\|$', re.MULTILINE)
+        table_rows = table_pattern.findall("".join(self.lines))
+        for table_row in table_rows:
+            result["Table"].append(table_row.strip().split("|"))
         return dict(result)
     
     def identify_links(self):
