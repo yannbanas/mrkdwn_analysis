@@ -1,3 +1,9 @@
 build/
 dist/
 markdown_analysis.egg-info/
+mrkdwn.py
+arangodb.md
+backup_1401.txt
+python3x.md
+sample.py
+test_mrkdwn.py

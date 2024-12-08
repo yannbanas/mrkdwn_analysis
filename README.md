@@ -1,122 +1,186 @@
 # mrkdwn_analysis
 
-`mrkdwn_analysis` is a Python library designed to analyze Markdown files. With its powerful parsing capabilities, it can extract and categorize various elements within a Markdown document, including headers, sections, links, images, blockquotes, code blocks, and lists. This makes it a valuable tool for anyone looking to parse Markdown content for data analysis, content generation, or for building other tools that utilize Markdown.
+`mrkdwn_analysis` is a powerful Python library designed to analyze Markdown files. It provides extensive parsing capabilities to extract and categorize various elements within a Markdown document, including headers, sections, links, images, blockquotes, code blocks, lists, tables, tasks (todos), footnotes, and even embedded HTML. This makes it a versatile tool for data analysis, content generation, or building other tools that work with Markdown.
 
 ## Features
 
-- File Loading: The MarkdownAnalyzer can load any given Markdown file provided through the file path.
+- **File Loading**: Load any given Markdown file by providing its file path.
 
-- Header Identification: The tool can extract all headers from the markdown file, ranging from H1 to H6 tags. This allows users to have a quick overview of the document's structure.
+- **Header Detection**: Identify all headers (ATX `#` to `######`, and Setext `===` and `---`) in the document, giving you a quick overview of its structure.
 
-- Section Identification: The analyzer can recognize different sections of the document. It defines a section as a block of text followed by a line composed solely of = or - characters.
+- **Section Identification (Setext)**: Recognize sections defined by a block of text followed by `=` or `-` lines, helping you understand the document’s conceptual divisions.
 
-- Paragraph Identification: The tool can distinguish between regular text and other elements such as lists, headers, etc., thereby identifying all the paragraphs present in the document.
+- **Paragraph Extraction**: Distinguish regular text (paragraphs) from structured elements like headers, lists, or code blocks, making it easy to isolate the body content.
 
-- Blockquote Identification: The analyzer can identify and extract all blockquotes in the markdown file.
+- **Blockquote Identification**: Extract all blockquotes defined by lines starting with `>`.
 
-- Code Block Identification: The tool can extract all code blocks defined in the document, allowing you to separate the programming code from the regular text easily.
+- **Code Block Extraction**: Detect fenced code blocks delimited by triple backticks (```), optionally retrieve their language, and separate programming code from regular text.
 
-- List Identification: The analyzer can identify both ordered and unordered lists in the markdown file, providing information about the hierarchical structure of the points.
+- **List Recognition**: Identify both ordered and unordered lists, including task lists (`- [ ]`, `- [x]`), and understand their structure and hierarchy.
 
-- Table Identification: The tool can identify and extract tables from the markdown file, enabling users to separate and analyze tabular data quickly.
+- **Tables (GFM)**: Detect GitHub-Flavored Markdown tables, parse their headers and rows, and separate structured tabular data for further analysis.
 
-- Link Identification and Validation: The analyzer can identify all links present in the markdown file, categorizing them into text and image links. Moreover, it can also verify if these links are valid or broken.
+- **Links and Images**: Identify text links (`[text](url)`) and images (`![alt](url)`), as well as reference-style links. This is useful for link validation or content analysis.
 
-- Todo Identification: The tool is capable of recognizing and extracting todos (tasks or action items) present in the document.
+- **Footnotes**: Extract and handle Markdown footnotes (`[^note1]`), providing a way to process reference notes in the document.
 
-- Element Counting: The analyzer can count the total number of a specific element type in the file. This can help in quantifying the extent of different elements in the document.
+- **HTML Blocks and Inline HTML**: Handle HTML blocks (`<div>...</div>`) as a single element, and detect inline HTML elements (`<span style="...">... </span>`) as a unified component.
 
-- Word Counting: The tool can count the total number of words in the file, providing an estimate of the document's length.
+- **Front Matter**: If present, extract YAML front matter at the start of the file.
 
-- Character Counting: The analyzer can count the total number of characters (excluding spaces) in the file, giving a detailed measure of the document's size.
+- **Counting Elements**: Count how many occurrences of a certain element type (e.g., how many headers, code blocks, etc.).
+
+- **Textual Statistics**: Count the number of words and characters (excluding whitespace). Get a global summary (`analyse()`) of the document’s composition.
 
 ## Installation
-You can install `mrkdwn_analysis` from PyPI:
+
+Install `mrkdwn_analysis` from PyPI:
 
 ```bash
-pip install mrkdwn_analysis
+pip install markdown-analysis
 ```
 
-We hope `mrkdwn_analysis` helps you with all your Markdown analyzing needs!
-
 ## Usage
-Using `mrkdwn_analysis` is simple. Just import the `MarkdownAnalyzer` class, create an instance with your Markdown file, and you're good to go!
+
+Using `mrkdwn_analysis` is straightforward. Import `MarkdownAnalyzer`, create an instance with your Markdown file path, and then call the various methods to extract the elements you need.
 
 ```python
 from mrkdwn_analysis import MarkdownAnalyzer
 
-analyzer = MarkdownAnalyzer("path/to/your/markdown.md")
+analyzer = MarkdownAnalyzer("path/to/document.md")
 
 headers = analyzer.identify_headers()
-sections = analyzer.identify_sections()
+paragraphs = analyzer.identify_paragraphs()
+links = analyzer.identify_links()
 ...
 ```
 
-### Class MarkdownAnalyzer
+### Example
 
-The `MarkdownAnalyzer` class is designed to analyze Markdown files. It has the ability to extract and categorize various elements of a Markdown document.
+Consider `example.md`:
 
-### `__init__(self, file_path)`
+```markdown
+---
+title: "Python 3.11 Report"
+author: "John Doe"
+date: "2024-01-15"
+---
 
-The constructor of the class. It opens the specified Markdown file and stores its content line by line.
+Python 3.11
+===========
 
-- `file_path`: the path of the Markdown file to analyze.
+A major **Python** release with significant improvements...
 
-### `identify_headers(self)`
+### Performance Details
 
-Analyzes the file and identifies all headers (from h1 to h6). Headers are returned as a dictionary where the key is "Header" and the value is a list of all headers found.
+```python
+import math
+print(math.factorial(10))
+```
 
-### `identify_sections(self)`
+> *Quote*: "Python 3.11 brings the speed we needed"
 
-Analyzes the file and identifies all sections. Sections are defined as a block of text followed by a line composed solely of `=` or `-` characters. Sections are returned as a dictionary where the key is "Section" and the value is a list of all sections found.
+<div class="note">
+  <p>HTML block example</p>
+</div>
 
-### `identify_paragraphs(self)`
+This paragraph contains inline HTML: <span style="color:red;">Red text</span>.
 
-Analyzes the file and identifies all paragraphs. Paragraphs are defined as a block of text that is not a header, list, blockquote, etc. Paragraphs are returned as a dictionary where the key is "Paragraph" and the value is a list of all paragraphs found.
+- Unordered list:
+  - A basic point
+  - [ ] A task to do
+  - [x] A completed task
 
-### `identify_blockquotes(self)`
+1. Ordered list item 1
+2. Ordered list item 2
+```
 
-Analyzes the file and identifies all blockquotes. Blockquotes are defined by a line starting with the `>` character. Blockquotes are returned as a dictionary where the key is "Blockquote" and the value is a list of all blockquotes found.
+After analysis:
 
-### `identify_code_blocks(self)`
+```python
+analyzer = MarkdownAnalyzer("example.md")
 
-Analyzes the file and identifies all code blocks. Code blocks are defined by a block of text surrounded by lines containing only the "```" text. Code blocks are returned as a dictionary where the key is "Code block" and the value is a list of all code blocks found.
+print(analyzer.identify_headers())
+# {"Header": [{"line": X, "level": 1, "text": "Python 3.11"}, {"line": Y, "level": 3, "text": "Performance Details"}]}
 
-### `identify_ordered_lists(self)`
+print(analyzer.identify_paragraphs())
+# {"Paragraph": ["A major **Python** release ...", "This paragraph contains inline HTML: ..."]}
 
-Analyzes the file and identifies all ordered lists. Ordered lists are defined by lines starting with a number followed by a dot. Ordered lists are returned as a dictionary where the key is "Ordered list" and the value is a list of all ordered lists found.
+print(analyzer.identify_html_blocks())
+# [{"line": Z, "content": "<div class=\"note\">\n  <p>HTML block example</p>\n</div>"}]
 
-### `identify_unordered_lists(self)`
+print(analyzer.identify_html_inline())
+# [{"line": W, "html": "<span style=\"color:red;\">Red text</span>"}]
 
-Analyzes the file and identifies all unordered lists. Unordered lists are defined by lines starting with a `-`, `*`, or `+`. Unordered lists are returned as a dictionary where the key is "Unordered list" and the value is a list of all unordered lists found.
+print(analyzer.identify_lists())
+# {
+#   "Ordered list": [["Ordered list item 1", "Ordered list item 2"]],
+#   "Unordered list": [["A basic point", "A task to do [Task]", "A completed task [Task done]"]]
+# }
 
-### `identify_tables(self)`
+print(analyzer.identify_code_blocks())
+# {"Code block": [{"start_line": X, "content": "import math\nprint(math.factorial(10))", "language": "python"}]}
 
-Analyzes the file and identifies all tables. Tables are defined by lines containing `|` to delimit cells and are separated by lines containing `-` to define the borders. Tables are returned as a dictionary where the key is "Table" and the value is a list of all tables found.
+print(analyzer.analyse())
+# {
+#   'headers': 2,
+#   'paragraphs': 2,
+#   'blockquotes': 1,
+#   'code_blocks': 1,
+#   'ordered_lists': 2,
+#   'unordered_lists': 3,
+#   'tables': 0,
+#   'html_blocks': 1,
+#   'html_inline_count': 1,
+#   'words': 42,
+#   'characters': 250
+# }
+```
 
-### `identify_links(self)`
+### Key Methods
 
-Analyzes the file and identifies all links. Links are defined by the format `[text](url)`. Links are returned as a dictionary where the keys are "Text link" and "Image link" and the values are lists of all links found.
+- `__init__(self, file_path)`: Load the Markdown file.
+- `identify_headers()`: Returns all headers.
+- `identify_sections()`: Returns setext sections.
+- `identify_paragraphs()`: Returns paragraphs.
+- `identify_blockquotes()`: Returns blockquotes.
+- `identify_code_blocks()`: Returns code blocks with content and language.
+- `identify_lists()`: Returns both ordered and unordered lists (including tasks).
+- `identify_tables()`: Returns any GFM tables.
+- `identify_links()`: Returns text and image links.
+- `identify_footnotes()`: Returns footnotes used in the document.
+- `identify_html_blocks()`: Returns HTML blocks as single tokens.
+- `identify_html_inline()`: Returns inline HTML elements.
+- `identify_todos()`: Returns task items.
+- `count_elements(element_type)`: Counts occurrences of a specific element type.
+- `count_words()`: Counts words in the entire document.
+- `count_characters()`: Counts non-whitespace characters.
+- `analyse()`: Provides a global summary (headers count, paragraphs count, etc.).
 
-### `check_links(self)`
+### Checking and Validating Links
 
-Checks all links identified by `identify_links` to see if they are broken (return a 404 error). Broken links are returned as a list, each item being a dictionary containing the line number, link text, and URL.
+- `check_links()`: Validates text links to see if they are broken (e.g., non-200 status) and returns a list of broken links.
 
-### `identify_todos(self)`
+### Global Analysis Example
 
-Analyzes the file and identifies all todos. Todos are defined by lines starting with `- [ ] `. Todos are returned as a list, each item being a dictionary containing the line number and todo text.
+```python
+analysis = analyzer.analyse()
+print(analysis)
+# {
+#   'headers': X,
+#   'paragraphs': Y,
+#   'blockquotes': Z,
+#   'code_blocks': A,
+#   'ordered_lists': B,
+#   'unordered_lists': C,
+#   'tables': D,
+#   'html_blocks': E,
+#   'html_inline_count': F,
+#   'words': G,
+#   'characters': H
+# }
+```
 
-### `count_elements(self, element_type)`
+## Contributing
 
-Counts the total number of a specific element type in the file. The `element_type` should match the name of one of the identification methods (for example, "headers" for `identify_headers`). Returns the total number of elements of this type.
-
-### `count_words(self)`
-
-Counts the total number of words in the file. Returns the word count.
-
-### `count_characters(self)`
-
-Counts the total number of characters (excluding spaces) in the file. Returns the character count.
-
-## Contributions
-Contributions are always welcome! If you have a feature request, bug report, or just want to improve the code, feel free to create a pull request or open an issue.
+Contributions are welcome! Feel free to open an issue or submit a pull request for bug reports, feature requests, or code improvements. Your input helps make `mrkdwn_analysis` more robust and versatile.
