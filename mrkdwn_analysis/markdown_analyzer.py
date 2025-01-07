@@ -233,6 +233,7 @@ class MarkdownParser:
         separator_line = self.lines[self.pos+1].strip()
         self.pos += 2
         rows = []
+        
         while self.pos < self.length:
             line = self.lines[self.pos].strip()
             if not line or self.starts_new_block(line):
@@ -240,12 +241,21 @@ class MarkdownParser:
             rows.append(line)
             self.pos += 1
 
-        header_cells = [h.strip() for h in header_line.strip('|').split('|') if h.strip()]
-        data_rows = []
-        for r in rows:
-            data_rows.append([c.strip() for c in r.strip('|').split('|') if c.strip()])
+        def parse_row(row):
+            parts = row.strip().split('|')
+            if parts and not parts[0]:
+                parts.pop(0)
+            if parts and not parts[-1]:
+                parts.pop()
+            return [p.strip() for p in parts]
 
-        self.tokens.append(BlockToken('table', meta={"header": header_cells, "rows": data_rows}, line=start+1))
+        header_cells = parse_row(header_line)
+        data_rows = [parse_row(row) for row in rows]
+
+        self.tokens.append(BlockToken('table', meta={
+            "header": header_cells,
+            "rows": data_rows
+        }, line=start+1))
 
     def starts_new_block(self, line):
         return (self.ATX_HEADER_RE.match(line) or
