@@ -558,3 +558,76 @@ class MarkdownAnalyzer:
             'characters': self.count_characters()
         }
         return analysis
+
+# =================== SUPPORT MDX ===================
+
+class MDXBlockToken(BlockToken):
+    def __init__(self, type_, content="", level=None, meta=None, line=None):
+        super().__init__(type_, content, level, meta, line)
+
+class MDXMarkdownParser(MarkdownParser):
+    JSX_IMPORT_RE = re.compile(r'^import\s+.*?\s+from\s+["\'](.*?)["\'];?\s*$')
+    JSX_COMPONENT_START_RE = re.compile(r'^<([A-Z][A-Za-z0-9]*|[a-z]+\.[A-Z][A-Za-z0-9]*).*?(?:>|\/>)$')
+    JSX_COMPONENT_END_RE = re.compile(r'^</([A-Z][A-Za-z0-9]*|[a-z]+\.[A-Z][A-Za-z0-9]*)>$')
+    
+    def __init__(self, text):
+        super().__init__(text)
+        self.in_jsx_block = False
+        self.current_jsx_content = []
+        self.jsx_start_line = None
+    
+    def handle_potential_hanging(self):
+        if self.pos >= self.length:
+            return False
+        line = self.lines[self.pos].strip()
+        if '</TabItem>' in line or '</Tabs>' in line:
+            self.pos += 1
+            return True
+        return False
+
+    def parse_fenced_code_block(self, lang):
+        initial_line = self.pos
+        self.pos += 1
+        content = []
+        
+        while self.pos < self.length:
+            line = self.lines[self.pos]
+            if line.strip() == '```':
+                if content:
+                    # Preserve proper indentation
+                    base_indent = min(len(line) - len(line.lstrip()) 
+                                   for line in content if line.strip())
+                    clean_content = []
+                    for line in content:
+                        if line.strip():
+                            clean_content.append('    ' + line[base_indent:])
+                    self.tokens.append(BlockToken('code', 
+                        content='\n'.join(clean_content),
+                        meta={"language": lang.strip(), "code_type": "fenced"},
+                        line=initial_line + 1))
+                self.pos += 1
+                return
+            content.append(line)
+            self.pos += 1
+
+    def parse(self):
+        self.tokens = []
+        while self.pos < self.length:
+            line = self.lines[self.pos].strip()
+            if self.FENCE_RE.match(line):
+                lang = self.FENCE_RE.match(line).group(1)
+                self.parse_fenced_code_block(lang)
+                continue
+            self.pos += 1
+        return self.tokens
+
+class MDXMarkdownAnalyzer(MarkdownAnalyzer):
+    def __init__(self, file_path, encoding='utf-8'):
+        with open(file_path, 'r', encoding=encoding) as f:
+            self.text = f.read()
+        parser = MDXMarkdownParser(self.text)
+        self.tokens = parser.parse()
+        self.references = parser.references
+        self.footnotes = parser.footnotes
+        self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
+        self._parse_inline_tokens()

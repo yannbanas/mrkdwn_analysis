@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='markdown_analysis',
-    version='0.1.1',
+    version='0.1.3',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='yannbanas',

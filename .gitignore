@@ -7,3 +7,8 @@ backup_1401.txt
 python3x.md
 sample.py
 test_mrkdwn.py
+TestEmojiMarkdown.py
+TestMarkdownTableParsing.py
+TestTabsMDX.py
+TestMarkdownTableParsing.py
+tabs_content_invalid.mdx
