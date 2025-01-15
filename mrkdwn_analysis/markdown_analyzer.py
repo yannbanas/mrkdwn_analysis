@@ -284,19 +284,24 @@ class MarkdownParser:
         self.pos = self.length
 
     def parse_fenced_code_block(self, lang):
+        initial_line = self.pos
+        initial_indent = len(self.lines[self.pos]) - len(self.lines[self.pos].lstrip())
+        fence_marker = self.lines[self.pos].strip()[:3]  # Get ``` or ~~~
         self.pos += 1
         start = self.pos
+        
         while self.pos < self.length:
             line = self.lines[self.pos]
-            if line.strip().startswith('```'):
+            if line.strip() == fence_marker:
                 content = "\n".join(self.lines[start:self.pos])
                 self.tokens.append(BlockToken('code', content=content, meta={"language": lang}, line=start+1))
                 self.pos += 1
                 return
             self.pos += 1
-        content = "\n".join(self.lines[start:])
-        self.tokens.append(BlockToken('code', content=content, meta={"language": lang}, line=start+1))
-        self.pos = self.length
+            
+        # If we reach here, we didn't find the closing fence
+        self.pos = initial_line  # Reset position if fence not found
+        raise ValueError(f"Unclosed code fence starting at line {initial_line + 1}")
 
     def parse_blockquote(self):
         start = self.pos
