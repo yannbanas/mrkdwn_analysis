@@ -385,9 +385,13 @@ class MarkdownParser:
 
 
 class MarkdownAnalyzer:
-    def __init__(self, file_path, encoding='utf-8'):
-        with open(file_path, 'r', encoding=encoding) as f:
-            self.text = f.read()
+    def __init__(self, input_file, encoding='utf-8'):
+        # handle file object or path
+        if hasattr(input_file, 'read'):
+            self.text = input_file.read()
+        else:
+            with open(file_path, 'r', encoding=encoding) as f:
+                self.text = f.read()
         parser = MarkdownParser(self.text)
         self.tokens = parser.parse()
         self.references = parser.references

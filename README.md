@@ -139,7 +139,7 @@ print(analyzer.analyse())
 
 ### Key Methods
 
-- `__init__(self, file_path)`: Load the Markdown file.
+- `__init__(self, input_file)`: Load the Markdown from path or file object.
 - `identify_headers()`: Returns all headers.
 - `identify_sections()`: Returns setext sections.
 - `identify_paragraphs()`: Returns paragraphs.
