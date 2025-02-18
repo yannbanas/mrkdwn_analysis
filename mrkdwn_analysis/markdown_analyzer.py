@@ -122,8 +122,6 @@ class MarkdownParser:
                 self.pos += 1
                 continue
 
-            print(f"Processing line {self.pos}: {line!r}")
-
             if self.is_table_start():
                 self.parse_table()
                 continue
