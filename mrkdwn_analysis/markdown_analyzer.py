@@ -122,6 +122,8 @@ class MarkdownParser:
                 self.pos += 1
                 continue
 
+            print(f"Processing line {self.pos}: {line!r}")
+
             if self.is_table_start():
                 self.parse_table()
                 continue
@@ -383,15 +385,18 @@ class MarkdownParser:
         if content:
             self.tokens.append(BlockToken('paragraph', content=content, line=start+1))
 
-
 class MarkdownAnalyzer:
-    def __init__(self, input_file, encoding='utf-8'):
-        # handle file object or path
-        if hasattr(input_file, 'read'):
-            self.text = input_file.read()
+    def __init__(self, input_file=None, text=None, encoding='utf-8'):
+        if text is None:
+            if input_file is None:
+                raise ValueError("Either input_file or text must be provided")
+            elif hasattr(input_file, 'read'):
+                self.text = input_file.read()
+            else:
+                with open(input_file, 'r', encoding=encoding) as f:
+                    self.text = f.read()
         else:
-            with open(file_path, 'r', encoding=encoding) as f:
-                self.text = f.read()
+            self.text = text
         parser = MarkdownParser(self.text)
         self.tokens = parser.parse()
         self.references = parser.references
