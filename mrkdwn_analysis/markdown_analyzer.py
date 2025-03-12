@@ -1,5 +1,30 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Module complet pour le parsing, l’analyse et la conversion de documents Markdown,
+y compris la transformation intégrale d’un site web en document Markdown structuré.
+
+Ce module intègre également le support MDX et quelques extensions utiles.
+"""
+
 import re
-from collections import defaultdict, Counter
+import logging
+import os
+import json
+from collections import defaultdict, deque
+from urllib.parse import urljoin, urlparse
+
+import requests
+from bs4 import BeautifulSoup
+from markdownify import markdownify as md
+
+# Configuration du logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# PARTIE 1 : PARSING ET ANALYSE DU MARKDOWN / MDX
+# =============================================================================
 
 class BlockToken:
     def __init__(self, type_, content="", level=None, meta=None, line=None):
@@ -17,7 +42,6 @@ class InlineParser:
     HTML_INLINE_RE = re.compile(r'<[a-zA-Z/][^>]*>')
     HTML_INLINE_BLOCK_RE = re.compile(r'<([a-zA-Z]+)([^>]*)>(.*?)</\1>', re.DOTALL)
 
-
     def __init__(self, references=None, footnotes=None):
         self.references = references or {}
         self.footnotes = footnotes or {}
@@ -32,6 +56,7 @@ class InlineParser:
             "html_inline": []
         }
 
+        # Traitement des footnotes
         used_footnotes = set()
         for fm in self.FOOTNOTE_RE.finditer(text):
             fid = fm.group(1)
@@ -39,34 +64,33 @@ class InlineParser:
                 used_footnotes.add(fid)
                 result["footnotes_used"].append({"id": fid, "content": self.footnotes[fid]})
 
+        # Traitement du code inline
         for cm in self.CODE_INLINE_RE.finditer(text):
             code = cm.group(1)
             result["inline_code"].append(code)
 
+        # Traitement de l'emphase
         for em_match in self.EMPHASIS_RE.finditer(text):
             emphasized_text = em_match.group(2) or em_match.group(3) or em_match.group(4)
             if emphasized_text:
                 result["emphasis"].append(emphasized_text)
 
-   
+        # Extraction améliorée du HTML inline grâce à BeautifulSoup
+        soup = BeautifulSoup(text, 'html.parser')
+        for tag in soup.find_all():
+            result["html_inline"].append(str(tag))
+
+        # Extraction des liens et images via regex
         temp_text = text
-        for block_match in self.HTML_INLINE_BLOCK_RE.finditer(text):
-            html_content = block_match.group(0)
-            result["html_inline"].append(html_content)
-            temp_text = temp_text.replace(html_content, "")
-
-
         for mm in self.IMAGE_OR_LINK_RE.finditer(temp_text):
             prefix = mm.group(1)
             inner_text = mm.group(2)
             url = mm.group(4)
             ref_id = mm.group(5)
-
             is_image = prefix.startswith('!')
             final_url = url
             if ref_id and ref_id.lower() in self.references:
                 final_url = self.references[ref_id.lower()]
-
             if is_image:
                 if final_url:
                     result["image_links"].append({"alt_text": inner_text, "url": final_url})
@@ -105,7 +129,6 @@ class MarkdownParser:
         for m in self.REFERENCE_DEF_RE.finditer(self.text):
             rid, url = m.groups()
             self.references[rid.lower()] = url
-
         for m in self.FOOTNOTE_DEF_RE.finditer(self.text):
             fid, content = m.groups()
             self.footnotes[fid] = content
@@ -113,7 +136,6 @@ class MarkdownParser:
     def parse(self):
         if self.pos < self.length and self.FRONTMATTER_RE.match(self.lines[self.pos].strip()):
             self.parse_frontmatter()
-
         while self.pos < self.length:
             if self.pos >= self.length:
                 break
@@ -122,11 +144,14 @@ class MarkdownParser:
                 self.pos += 1
                 continue
 
+            # --- Gestion des blocs de code indentés ---
+            if line.startswith("    ") or line.startswith("\t"):
+                self.parse_indented_code_block()
+                continue
+
             if self.is_table_start():
                 self.parse_table()
                 continue
-
-            # HTML block ?
             if self.is_html_block_start(line):
                 self.parse_html_block()
                 continue
@@ -178,8 +203,36 @@ class MarkdownParser:
 
         return self.tokens
 
+    def parse_indented_code_block(self):
+        """Parse un bloc de code indenté (au moins 4 espaces ou une tabulation)."""
+        start = self.pos
+        lines = []
+        while self.pos < self.length:
+            line = self.lines[self.pos]
+            if line.startswith("    ") or line.startswith("\t"):
+                # Supprimer l'indentation (4 espaces ou 1 tabulation)
+                if line.startswith("    "):
+                    lines.append(line[4:])
+                else:
+                    lines.append(line[1:])
+                self.pos += 1
+            else:
+                break
+        if lines:
+            content = "\n".join(lines)
+            self.tokens.append(BlockToken('code', content=content, meta={"language": None, "code_type": "indented"}, line=start+1))
+
+    def get_emojis(self, text):
+        """Extrait et retourne la liste des emojis présents dans le texte."""
+        emoji_pattern = re.compile("[" 
+            u"\U0001F600-\U0001F64F"  # Émoticônes
+            u"\U0001F300-\U0001F5FF"  # Symboles & pictogrammes
+            u"\U0001F680-\U0001F6FF"  # Symboles de transport & cartes
+            u"\U0001F1E0-\U0001F1FF"  # Drapeaux (iOS)
+            "]+", flags=re.UNICODE)
+        return emoji_pattern.findall(text)
+    
     def is_html_block_start(self, line):
-        # Vérifie si la ligne ressemble à du HTML
         return self.HTML_BLOCK_START.match(line.strip()) is not None
 
     def parse_html_block(self):
@@ -187,33 +240,23 @@ class MarkdownParser:
         lines = []
         first_line = self.lines[self.pos].strip()
         comment_mode = first_line.startswith('<!--')
-
-        # On démarre le bloc HTML, on va lire jusqu'à une ligne vide ou la fin du fichier
         while self.pos < self.length:
             line = self.lines[self.pos]
             lines.append(line)
             self.pos += 1
-
             if comment_mode and self.HTML_BLOCK_END_COMMENT.search(line):
-                # Fin du commentaire HTML
                 break
             else:
-                # Si la prochaine ligne est vide ou inexistante, on arrête.
                 if self.pos < self.length:
                     nxt_line = self.lines[self.pos]
                     if not nxt_line.strip():
-                        # Ligne vide => fin du bloc HTML
                         break
                 else:
-                    # Fin du fichier
                     break
-
         content = "\n".join(lines)
         self.tokens.append(BlockToken('html_block', content=content, line=start+1))
 
-
     def starts_new_block_peek(self):
-        # Regarde la ligne suivante sans avancer
         if self.pos < self.length:
             nxt = self.lines[self.pos].strip()
             return self.starts_new_block(nxt)
@@ -233,14 +276,12 @@ class MarkdownParser:
         separator_line = self.lines[self.pos+1].strip()
         self.pos += 2
         rows = []
-        
         while self.pos < self.length:
             line = self.lines[self.pos].strip()
             if not line or self.starts_new_block(line):
                 break
             rows.append(line)
             self.pos += 1
-
         def parse_row(row):
             parts = row.strip().split('|')
             if parts and not parts[0]:
@@ -248,14 +289,9 @@ class MarkdownParser:
             if parts and not parts[-1]:
                 parts.pop()
             return [p.strip() for p in parts]
-
         header_cells = parse_row(header_line)
         data_rows = [parse_row(row) for row in rows]
-
-        self.tokens.append(BlockToken('table', meta={
-            "header": header_cells,
-            "rows": data_rows
-        }, line=start+1))
+        self.tokens.append(BlockToken('table', meta={"header": header_cells, "rows": data_rows}, line=start+1))
 
     def starts_new_block(self, line):
         return (self.ATX_HEADER_RE.match(line) or
@@ -285,11 +321,9 @@ class MarkdownParser:
 
     def parse_fenced_code_block(self, lang):
         initial_line = self.pos
-        initial_indent = len(self.lines[self.pos]) - len(self.lines[self.pos].lstrip())
-        fence_marker = self.lines[self.pos].strip()[:3]  # Get ``` or ~~~
+        fence_marker = self.lines[self.pos].strip()[:3]
         self.pos += 1
         start = self.pos
-        
         while self.pos < self.length:
             line = self.lines[self.pos]
             if line.strip() == fence_marker:
@@ -298,9 +332,7 @@ class MarkdownParser:
                 self.pos += 1
                 return
             self.pos += 1
-            
-        # If we reach here, we didn't find the closing fence
-        self.pos = initial_line  # Reset position if fence not found
+        self.pos = initial_line
         raise ValueError(f"Unclosed code fence starting at line {initial_line + 1}")
 
     def parse_blockquote(self):
@@ -322,7 +354,6 @@ class MarkdownParser:
         items = []
         current_item = []
         list_pattern = self.ORDERED_LIST_RE if ordered else self.UNORDERED_LIST_RE
-
         while self.pos < self.length:
             line = self.lines[self.pos]
             if not line.strip():
@@ -331,10 +362,8 @@ class MarkdownParser:
                     current_item = []
                 self.pos += 1
                 continue
-
             if self.starts_new_block(line.strip()) and not (self.ORDERED_LIST_RE.match(line.strip()) or self.UNORDERED_LIST_RE.match(line.strip())):
                 break
-
             lm = list_pattern.match(line)
             if lm:
                 if current_item:
@@ -345,10 +374,8 @@ class MarkdownParser:
             else:
                 current_item.append(line.strip())
                 self.pos += 1
-
         if current_item:
             items.append("\n".join(current_item).strip())
-
         task_re = re.compile(r'^\[( |x)\]\s+(.*)$')
         final_items = []
         for it in items:
@@ -362,7 +389,6 @@ class MarkdownParser:
                 final_items.append({"text": text, "task_item": True, "checked": task_checked})
             else:
                 final_items.append({"text": it, "task_item": False})
-
         list_type = 'ordered_list' if ordered else 'unordered_list'
         self.tokens.append(BlockToken(list_type, meta={"items": final_items}, line=start+1))
 
@@ -378,30 +404,78 @@ class MarkdownParser:
                 break
             lines.append(line)
             self.pos += 1
-
         content = "\n".join(lines).strip()
         if content:
             self.tokens.append(BlockToken('paragraph', content=content, line=start+1))
 
 class MarkdownAnalyzer:
-    def __init__(self, input_file=None, text=None, encoding='utf-8'):
-        if text is None:
-            if input_file is None:
-                raise ValueError("Either input_file or text must be provided")
-            elif hasattr(input_file, 'read'):
-                self.text = input_file.read()
-            else:
-                with open(input_file, 'r', encoding=encoding) as f:
-                    self.text = f.read()
-        else:
-            self.text = text
+    def __init__(self, file_path, encoding='utf-8'):
+        with open(file_path, 'r', encoding=encoding) as f:
+            self.text = f.read()
         parser = MarkdownParser(self.text)
         self.tokens = parser.parse()
         self.references = parser.references
         self.footnotes = parser.footnotes
         self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
-
         self._parse_inline_tokens()
+
+    @classmethod
+    def from_url(cls, url, encoding='utf-8'):
+        """
+        Create a MarkdownAnalyzer from a URL.
+        
+        Args:
+            url (str): The URL to fetch the markdown content from.
+            encoding (str): The encoding to use for the content.
+            
+        Returns:
+            MarkdownAnalyzer: An analyzer for the markdown content.
+        """
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            text = response.text
+            
+            parser = MarkdownParser(text)
+            tokens = parser.parse()
+            
+            analyzer = cls.__new__(cls)
+            analyzer.text = text
+            analyzer.tokens = tokens
+            analyzer.references = parser.references
+            analyzer.footnotes = parser.footnotes
+            analyzer.inline_parser = InlineParser(references=analyzer.references, footnotes=analyzer.footnotes)
+            analyzer._parse_inline_tokens()
+            
+            return analyzer
+        except requests.RequestException as exc:
+            logger.error(f"Error fetching URL {url}: {exc}")
+            raise
+
+    @classmethod
+    def from_string(cls, markdown_string, encoding='utf-8'):
+        """
+        Create a MarkdownAnalyzer directly from a markdown string.
+        
+        Args:
+            markdown_string (str): The markdown content as a string.
+            encoding (str): The encoding of the string.
+            
+        Returns:
+            MarkdownAnalyzer: An analyzer for the markdown content.
+        """
+        parser = MarkdownParser(markdown_string)
+        tokens = parser.parse()
+        
+        analyzer = cls.__new__(cls)
+        analyzer.text = markdown_string
+        analyzer.tokens = tokens
+        analyzer.references = parser.references
+        analyzer.footnotes = parser.footnotes
+        analyzer.inline_parser = InlineParser(references=analyzer.references, footnotes=analyzer.footnotes)
+        analyzer._parse_inline_tokens()
+        
+        return analyzer
 
     def _parse_inline_tokens(self):
         inline_types = ('paragraph', 'header', 'blockquote')
@@ -503,7 +577,7 @@ class MarkdownAnalyzer:
     def identify_task_items(self):
         tasks = []
         for token in self.tokens:
-            if token.type in ('ordered_list','unordered_list'):
+            if token.type in ('ordered_list', 'unordered_list'):
                 for it in token.meta["items"]:
                     if it.get("task_item"):
                         tasks.append({
@@ -514,7 +588,6 @@ class MarkdownAnalyzer:
         return tasks
 
     def identify_html_blocks(self):
-        # Récupère les blocs HTML
         result = []
         for token in self.tokens:
             if token.type == 'html_block':
@@ -522,7 +595,6 @@ class MarkdownAnalyzer:
         return result
 
     def identify_html_inline(self):
-        # Récupère les tags HTML inline dans tous les tokens inline
         result = []
         inline_types = ('paragraph', 'header', 'blockquote')
         for token in self.tokens:
@@ -550,7 +622,6 @@ class MarkdownAnalyzer:
         tables = self.identify_tables().get("Table", [])
         html_blocks = self.identify_html_blocks()
         html_inline = self.identify_html_inline()
-
         analysis = {
             'headers': len(headers),
             'paragraphs': len(paragraphs),
@@ -566,23 +637,19 @@ class MarkdownAnalyzer:
         }
         return analysis
 
-# =================== SUPPORT MDX ===================
-
-class MDXBlockToken(BlockToken):
-    def __init__(self, type_, content="", level=None, meta=None, line=None):
-        super().__init__(type_, content, level, meta, line)
+# --- MDX Parsing ---
 
 class MDXMarkdownParser(MarkdownParser):
     JSX_IMPORT_RE = re.compile(r'^import\s+.*?\s+from\s+["\'](.*?)["\'];?\s*$')
     JSX_COMPONENT_START_RE = re.compile(r'^<([A-Z][A-Za-z0-9]*|[a-z]+\.[A-Z][A-Za-z0-9]*).*?(?:>|\/>)$')
     JSX_COMPONENT_END_RE = re.compile(r'^</([A-Z][A-Za-z0-9]*|[a-z]+\.[A-Z][A-Za-z0-9]*)>$')
-    
+
     def __init__(self, text):
         super().__init__(text)
         self.in_jsx_block = False
         self.current_jsx_content = []
         self.jsx_start_line = None
-    
+
     def handle_potential_hanging(self):
         if self.pos >= self.length:
             return False
@@ -596,22 +663,18 @@ class MDXMarkdownParser(MarkdownParser):
         initial_line = self.pos
         self.pos += 1
         content = []
-        
         while self.pos < self.length:
             line = self.lines[self.pos]
             if line.strip() == '```':
                 if content:
-                    # Preserve proper indentation
-                    base_indent = min(len(line) - len(line.lstrip()) 
-                                   for line in content if line.strip())
+                    base_indent = min(len(line) - len(line.lstrip()) for line in content if line.strip())
                     clean_content = []
                     for line in content:
                         if line.strip():
                             clean_content.append('    ' + line[base_indent:])
-                    self.tokens.append(BlockToken('code', 
-                        content='\n'.join(clean_content),
-                        meta={"language": lang.strip(), "code_type": "fenced"},
-                        line=initial_line + 1))
+                    self.tokens.append(BlockToken('code', content='\n'.join(clean_content),
+                                                    meta={"language": lang.strip(), "code_type": "fenced"},
+                                                    line=initial_line + 1))
                 self.pos += 1
                 return
             content.append(line)
@@ -638,3 +701,289 @@ class MDXMarkdownAnalyzer(MarkdownAnalyzer):
         self.footnotes = parser.footnotes
         self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
         self._parse_inline_tokens()
+
+# =============================================================================
+# PARTIE 2 : CONVERSION D'UN SITE WEB EN DOCUMENT MARKDOWN STRUCTURÉ
+# =============================================================================
+
+class WebsiteScraper:
+    """
+    Classe responsable de l'extraction des pages d'un site web à partir d'une URL de base.
+    Le crawling est limité aux pages du même domaine.
+    """
+    def __init__(self, base_url: str, max_depth: int = 2, timeout: int = 10):
+        self.base_url = base_url
+        self.max_depth = max_depth
+        self.timeout = timeout
+        self.visited = set()
+        self.domain = urlparse(base_url).netloc
+
+    def scrape(self) -> dict:
+        """
+        Crawl le site et retourne un dictionnaire {url: html_content}.
+        """
+        pages = {}
+        queue = deque([(self.base_url, 0)])
+        while queue:
+            current_url, depth = queue.popleft()
+            if current_url in self.visited:
+                continue
+            if depth > self.max_depth:
+                continue
+            logger.info("Scraping %s (depth %d)", current_url, depth)
+            try:
+                response = requests.get(current_url, timeout=self.timeout)
+                response.raise_for_status()
+            except requests.RequestException as exc:
+                logger.error("Erreur lors du téléchargement de %s: %s", current_url, exc)
+                continue
+            html_content = response.text
+            pages[current_url] = html_content
+            self.visited.add(current_url)
+            soup = BeautifulSoup(html_content, "html.parser")
+            for link_tag in soup.find_all("a", href=True):
+                href = link_tag.get("href")
+                next_url = urljoin(current_url, href)
+                if self._is_valid_url(next_url):
+                    queue.append((next_url, depth + 1))
+        return pages
+
+    def _is_valid_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        if parsed.netloc != self.domain:
+            return False
+        if re.fullmatch(r"#.*", parsed.path):
+            return False
+        return True
+
+class MarkdownConverter:
+    """
+    Classe chargée de convertir du contenu HTML en Markdown.
+    Utilise la librairie markdownify.
+    """
+    def __init__(self, heading_style: str = "ATX"):
+        self.heading_style = heading_style
+
+    def convert(self, html: str) -> str:
+        markdown = md(html, heading_style=self.heading_style)
+        return markdown
+
+class WebsiteMarkdownDocument:
+    """
+    Classe de haut niveau qui transforme un site web en un document Markdown structuré.
+    Elle orchestre le crawling (via WebsiteScraper) et la conversion (via MarkdownConverter).
+    """
+    def __init__(self, base_url: str, max_depth: int = 2):
+        self.base_url = base_url
+        self.max_depth = max_depth
+        self.scraper = WebsiteScraper(base_url, max_depth)
+        self.converter = MarkdownConverter()
+        self.pages = {}  # Dictionnaire {url: markdown_content}
+
+    def generate(self) -> str:
+        html_pages = self.scraper.scrape()
+        logger.info("Conversion de %d pages en Markdown", len(html_pages))
+        for url, html in html_pages.items():
+            markdown_content = self.converter.convert(html)
+            self.pages[url] = markdown_content
+
+        # Génération d'un index avec des liens vers chaque page
+        document_lines = ["# Index du site\n"]
+        for url in sorted(self.pages.keys()):
+            title = self._extract_title(self.pages[url])
+            anchor = self._url_to_anchor(url)
+            document_lines.append(f"- [{title}]({anchor})  <!-- {url} -->")
+        document_lines.append("\n---\n")
+        for url, markdown in self.pages.items():
+            title = self._extract_title(markdown)
+            anchor = self._url_to_anchor(url)
+            document_lines.append(f"\n## {title}\n")
+            document_lines.append(f"<!-- URL: {url} -->\n")
+            document_lines.append(markdown)
+            document_lines.append("\n---\n")
+        return "\n".join(document_lines)
+
+    @staticmethod
+    def _extract_title(markdown_text: str) -> str:
+        for line in markdown_text.splitlines():
+            line = line.strip()
+            if line.startswith("#"):
+                return line.lstrip("# ").strip()
+        return "Sans titre"
+
+    @staticmethod
+    def _url_to_anchor(url: str) -> str:
+        path = urlparse(url).path
+        anchor = path.strip("/").replace("/", "-")
+        if not anchor:
+            anchor = "index"
+        return f"#{anchor}"
+
+class MarkdownSiteConverter:
+    """
+    Classe d'abstraction pour convertir un site web en Markdown.
+    Fournit une interface simple et ergonomique.
+    """
+    def __init__(self, base_url: str, max_depth: int = 2):
+        self.document = WebsiteMarkdownDocument(base_url, max_depth)
+
+    def convert_site_to_markdown(self, output_file: str = None) -> str:
+        markdown_doc = self.document.generate()
+        if output_file:
+            try:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(markdown_doc)
+                logger.info("Document Markdown écrit dans %s", output_file)
+            except IOError as exc:
+                logger.error("Erreur d'écriture dans le fichier %s: %s", output_file, exc)
+        return markdown_doc
+
+# =============================================================================
+# PARTIE 3 : ABSTRACTION POUR UN DOCUMENT MARKDOWN
+# =============================================================================
+
+class MarkdownDocument:
+    """
+    Classe d'abstraction pour un document Markdown.
+    Elle encapsule l'analyse et fournit des méthodes simples pour accéder aux informations.
+    """
+    def __init__(self, source, from_url=False, from_string=False, encoding='utf-8'):
+        """
+        Initialize a Markdown document from different sources.
+        
+        Args:
+            source (str): Either a file path, URL, or markdown string based on the flags.
+            from_url (bool): If True, treat source as a URL.
+            from_string (bool): If True, treat source as a markdown string directly.
+            encoding (str): Text encoding to use.
+        """
+        if from_url:
+            self.analyzer = MarkdownAnalyzer.from_url(source, encoding=encoding)
+        elif from_string:
+            self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding)
+        else:
+            try:
+                # Try to open source as a file
+                with open(source, 'r', encoding=encoding) as f:
+                    text = f.read()
+                self.analyzer = MarkdownAnalyzer.from_string(text, encoding=encoding)
+            except (FileNotFoundError, IOError):
+                # Fall back to treating source as raw text
+                logger.warning("Source not found as file, treating as string.")
+                self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding)
+    
+    @classmethod
+    def from_file(cls, file_path, encoding='utf-8'):
+        """
+        Create a MarkdownDocument from a file.
+        
+        Args:
+            file_path (str): Path to the markdown file.
+            encoding (str): File encoding.
+            
+        Returns:
+            MarkdownDocument: A document analyzer for the file.
+        """
+        return cls(file_path, encoding=encoding)
+    
+    @classmethod
+    def from_url(cls, url, encoding='utf-8'):
+        """
+        Create a MarkdownDocument from a URL.
+        
+        Args:
+            url (str): URL to fetch markdown content from.
+            encoding (str): Content encoding.
+            
+        Returns:
+            MarkdownDocument: A document analyzer for the URL content.
+        """
+        return cls(url, from_url=True, encoding=encoding)
+    
+    @classmethod
+    def from_string(cls, markdown_string, encoding='utf-8'):
+        """
+        Create a MarkdownDocument directly from a markdown string.
+        
+        Args:
+            markdown_string (str): Markdown content as a string.
+            encoding (str): String encoding.
+            
+        Returns:
+            MarkdownDocument: A document analyzer for the string.
+        """
+        return cls(markdown_string, from_string=True, encoding=encoding)
+
+    # Rest of the methods remain the same
+    def get_summary(self):
+        return self.analyzer.analyse()
+
+    def get_headers(self):
+        return self.analyzer.identify_headers().get("Header", [])
+
+    def get_paragraphs(self):
+        return self.analyzer.identify_paragraphs().get("Paragraph", [])
+
+    def get_links(self):
+        return self.analyzer.identify_links()
+
+    def get_code_blocks(self):
+        return self.analyzer.identify_code_blocks().get("Code block", [])
+
+# =============================================================================
+# EXEMPLES D'UTILISATION
+# =============================================================================
+
+def main():
+    markdown_file = "arangodb.md"  # Fichier contenant le markdown fourni dans votre exemple
+
+    try:
+        # Création de l'objet MarkdownDocument qui encapsule l'analyse du document
+        doc = MarkdownDocument(markdown_file, from_url=False)
+    except Exception as e:
+        logger.error("Erreur lors du chargement du document Markdown : %s", e)
+        return
+
+    # Récupération du résumé de l'analyse
+    summary = doc.get_summary()
+    print("=== Résumé de l'analyse ===")
+    print(json.dumps(summary, indent=4, ensure_ascii=False))
+
+    # Extraction et affichage des en-têtes
+    headers = doc.get_headers()
+    print("\n=== En-têtes détectés ===")
+    for header in headers:
+        print(f"Ligne {header['line']}: {header['text']} (Niveau {header['level']})")
+
+    # Affichage des trois premiers paragraphes (pour avoir un aperçu du contenu)
+    paragraphs = doc.get_paragraphs()
+    print("\n=== Exemples de paragraphes ===")
+    for i, para in enumerate(paragraphs[:3], 1):
+        print(f"\nParagraphe {i} :\n{para}")
+
+    # Extraction des liens (textuels et images)
+    links = doc.get_links()
+    print("\n=== Liens extraits ===")
+    print(json.dumps(links, indent=4, ensure_ascii=False))
+
+    # Exemple d'export de l'analyse complète en JSON
+    analysis_output = {
+        "summary": summary,
+        "headers": headers,
+        "paragraphs": paragraphs,
+        "links": links,
+        # Vous pouvez ajouter d'autres parties de l'analyse (code_blocks, listes, etc.)
+    }
+    output_json_file = "analysis_output.json"
+    try:
+        with open(output_json_file, "w", encoding="utf-8") as f:
+            json.dump(analysis_output, f, indent=4, ensure_ascii=False)
+        logger.info("Analyse exportée vers %s", output_json_file)
+    except Exception as e:
+        logger.error("Erreur lors de l'écriture du fichier JSON : %s", e)
+
+
+if __name__ == "__main__":
+    main()
