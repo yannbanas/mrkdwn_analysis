@@ -1,0 +1,449 @@
+[
+    {
+        "id": 1,
+        "type": "html_block",
+        "content": "<picture>\n  <source media=\"(prefers-color-scheme: dark)\" srcset=\"https://user-images.githubusercontent.com/7819991/218699214-264942f9-b020-4f50-b1a6-3363cdc0ddc9.svg\" width=\"638\" height=\"105\">\n  <source media=\"(prefers-color-scheme: light)\" srcset=\"https://user-images.githubusercontent.com/7819991/218699215-b9b4a465-45f8-4db9-b5a4-ba912541e017.svg\" width=\"638\" height=\"105\">\n  <img alt=\"Two stylized avocado halves and the product name.\" src=\"https://user-images.githubusercontent.com/7819991/218697980-26ffd7af-cf29-4365-8a5d-504b850fc6b1.png\" width=\"638\" height=\"105\">\n</picture>"
+    },
+    {
+        "id": 2,
+        "type": "header1",
+        "content": "ArangoDB"
+    },
+    {
+        "id": 3,
+        "type": "paragraph",
+        "content": "ArangoDB is a scalable graph database system to drive value from connected data,\nfaster. Native graphs, an integrated search engine, and JSON support, via a\nsingle query language. ArangoDB runs on-prem, in the cloud – anywhere."
+    },
+    {
+        "id": 4,
+        "type": "header2",
+        "content": "ArangoDB Cloud Service"
+    },
+    {
+        "id": 5,
+        "type": "paragraph",
+        "content": "The [ArangoGraph Insights Platform](https://cloud.arangodb.com/home) is the\nsimplest way to run ArangoDB. You can create deployments on all major cloud\nproviders in many regions with ease."
+    },
+    {
+        "id": 6,
+        "type": "link",
+        "content": "ArangoGraph Insights Platform",
+        "url": "https://cloud.arangodb.com/home"
+    },
+    {
+        "id": 7,
+        "type": "header2",
+        "content": "Getting Started"
+    },
+    {
+        "id": 8,
+        "type": "unordered_list",
+        "content": ""
+    },
+    {
+        "id": 9,
+        "type": "list_item",
+        "content": "[ArangoDB University](https://university.arangodb.com/)",
+        "checked": null
+    },
+    {
+        "id": 10,
+        "type": "list_item",
+        "content": "[Free Udemy Course](https://www.udemy.com/course/getting-started-with-arangodb)",
+        "checked": null
+    },
+    {
+        "id": 11,
+        "type": "list_item",
+        "content": "[Training Center](https://www.arangodb.com/learn/)",
+        "checked": null
+    },
+    {
+        "id": 12,
+        "type": "list_item",
+        "content": "[Documentation](https://docs.arangodb.com/)",
+        "checked": null
+    },
+    {
+        "id": 13,
+        "type": "list_item",
+        "content": "For the impatient:",
+        "checked": null
+    },
+    {
+        "id": 14,
+        "type": "list_item",
+        "content": "Test ArangoDB in the cloud with [ArangoGraph](https://cloud.arangodb.com/home) for free.",
+        "checked": null
+    },
+    {
+        "id": 15,
+        "type": "list_item",
+        "content": "Alternatively, [download](https://www.arangodb.com/download) and install ArangoDB.\nStart the server `arangod` if the installer did not do it for you.",
+        "checked": null
+    },
+    {
+        "id": 16,
+        "type": "list_item",
+        "content": "Or start ArangoDB in a Docker container:",
+        "checked": null
+    },
+    {
+        "id": 17,
+        "type": "list_item",
+        "content": "docker run -e ARANGO_ROOT_PASSWORD=test123 -p 8529:8529 -d arangodb",
+        "checked": null
+    },
+    {
+        "id": 18,
+        "type": "list_item",
+        "content": "Then point your browser to `http://127.0.0.1:8529/`.",
+        "checked": null
+    },
+    {
+        "id": 19,
+        "type": "list_item",
+        "content": "Key Features of ArangoDB",
+        "checked": null
+    },
+    {
+        "id": 20,
+        "type": "hr",
+        "content": ""
+    },
+    {
+        "id": 21,
+        "type": "paragraph",
+        "content": "**Native Graph** - Store both data and relationships, for faster queries even\nwith multiple levels of joins and deeper insights that simply aren't possible\nwith traditional relational and document database systems."
+    },
+    {
+        "id": 22,
+        "type": "italic",
+        "content": "Native Graph"
+    },
+    {
+        "id": 23,
+        "type": "paragraph",
+        "content": "**Document Store** - Every node in your graph is a JSON document:\nflexible, extensible, and easily imported from your existing document database."
+    },
+    {
+        "id": 24,
+        "type": "italic",
+        "content": "Document Store"
+    },
+    {
+        "id": 25,
+        "type": "paragraph",
+        "content": "**ArangoSearch** - Natively integrated cross-platform indexing, text-search and\nranking engine for information retrieval, optimized for speed and memory."
+    },
+    {
+        "id": 26,
+        "type": "italic",
+        "content": "ArangoSearch"
+    },
+    {
+        "id": 27,
+        "type": "paragraph",
+        "content": "ArangoDB is available in a free and open-source **Community Edition**, as well\nas a commercial **Enterprise Edition** with additional features."
+    },
+    {
+        "id": 28,
+        "type": "italic",
+        "content": "Community Edition"
+    },
+    {
+        "id": 29,
+        "type": "italic",
+        "content": "Enterprise Edition"
+    },
+    {
+        "id": 30,
+        "type": "header3",
+        "content": "Community Edition features"
+    },
+    {
+        "id": 31,
+        "type": "unordered_list",
+        "content": ""
+    },
+    {
+        "id": 32,
+        "type": "list_item",
+        "content": "**Horizontal scalability**: Seamlessly shard your data across multiple machines.",
+        "checked": null
+    },
+    {
+        "id": 33,
+        "type": "list_item",
+        "content": "**High availability** and **resilience**: Replicate data to multiple cluster\nnodes, with automatic failover.",
+        "checked": null
+    },
+    {
+        "id": 34,
+        "type": "list_item",
+        "content": "**Flexible data modeling**: Model your data as combination of key-value pairs,\ndocuments, and graphs as you see fit for your application.",
+        "checked": null
+    },
+    {
+        "id": 35,
+        "type": "list_item",
+        "content": "Work **schema-free** or use **schema validation** for data consistency.\nStore any type of data - date/time, geo-spatial, text, nested.",
+        "checked": null
+    },
+    {
+        "id": 36,
+        "type": "list_item",
+        "content": "**Powerful query language** (_AQL_) to retrieve and modify data - from simple\nCRUD operations, over complex filters and aggregations, all the way to joins,\ngraphs, and ranked full-text search.",
+        "checked": null
+    },
+    {
+        "id": 37,
+        "type": "list_item",
+        "content": "**Transactions**: Run queries on multiple documents or collections with\noptional transactional consistency and isolation.",
+        "checked": null
+    },
+    {
+        "id": 38,
+        "type": "list_item",
+        "content": "**Data-centric microservices**: Unify your data storage logic, reduce network\noverhead, and secure sensitive data with the _ArangoDB Foxx_ JavaScript framework.",
+        "checked": null
+    },
+    {
+        "id": 39,
+        "type": "list_item",
+        "content": "**Fast access to your data**: Fine-tune your queries with a variety of index\ntypes for optimal performance. ArangoDB is written in C++ and can handle even\nvery large datasets efficiently.",
+        "checked": null
+    },
+    {
+        "id": 40,
+        "type": "list_item",
+        "content": "Easy to use **web interface** and **command-line tools** for interaction\nwith the server.",
+        "checked": null
+    },
+    {
+        "id": 41,
+        "type": "header3",
+        "content": "Enterprise Edition features"
+    },
+    {
+        "id": 42,
+        "type": "paragraph",
+        "content": "Focus on solving enterprise-scale problems for mission critical workloads using\nsecure graph data. The Enterprise Edition has all the features of the\nCommunity Edition and offers additional features for performance, compliance,\nand security, as well as further query capabilities."
+    },
+    {
+        "id": 43,
+        "type": "unordered_list",
+        "content": ""
+    },
+    {
+        "id": 44,
+        "type": "list_item",
+        "content": "Smartly shard and replicate graphs and datasets with features like\n**EnterpriseGraphs**, **SmartGraphs**, and **SmartJoins** for lightning fast\nquery execution.",
+        "checked": null
+    },
+    {
+        "id": 45,
+        "type": "list_item",
+        "content": "Combine the performance of a single server with the resilience of a cluster\nsetup using **OneShard** deployments.",
+        "checked": null
+    },
+    {
+        "id": 46,
+        "type": "list_item",
+        "content": "Increase fault tolerance with **Datacenter-to-Datacenter Replication** and\nand create incremental **Hot Backups** without downtime.",
+        "checked": null
+    },
+    {
+        "id": 47,
+        "type": "list_item",
+        "content": "Enable highly secure work with **Encryption 360**, enhanced **Data Masking**, \nand detailed **Auditing**.",
+        "checked": null
+    },
+    {
+        "id": 48,
+        "type": "list_item",
+        "content": "Perform **parallel graph traversals**.",
+        "checked": null
+    },
+    {
+        "id": 49,
+        "type": "list_item",
+        "content": "Use ArangoSearch **search highlighting** and **nested search** for advanced\ninformation retrieval.",
+        "checked": null
+    },
+    {
+        "id": 50,
+        "type": "list_item",
+        "content": "Latest Release",
+        "checked": null
+    },
+    {
+        "id": 51,
+        "type": "hr",
+        "content": ""
+    },
+    {
+        "id": 52,
+        "type": "paragraph",
+        "content": "Packages for all supported platforms can be downloaded from"
+    },
+    {
+        "id": 53,
+        "type": "html_block",
+        "content": "<https://www.arangodb.com/download/>."
+    },
+    {
+        "id": 54,
+        "type": "paragraph",
+        "content": "For what's new in ArangoDB, see the Release Notes in the\n[Documentation](https://docs.arangodb.com/)."
+    },
+    {
+        "id": 55,
+        "type": "link",
+        "content": "Documentation",
+        "url": "https://docs.arangodb.com/"
+    },
+    {
+        "id": 56,
+        "type": "header2",
+        "content": "Stay in Contact"
+    },
+    {
+        "id": 57,
+        "type": "unordered_list",
+        "content": ""
+    },
+    {
+        "id": 58,
+        "type": "list_item",
+        "content": "Please use GitHub for feature requests and bug reports:\n[https://github.com/arangodb/arangodb/issues](https://github.com/arangodb/arangodb/issues)",
+        "checked": null
+    },
+    {
+        "id": 59,
+        "type": "list_item",
+        "content": "Ask questions about AQL, usage scenarios, etc. on StackOverflow:\n[https://stackoverflow.com/questions/tagged/arangodb](https://stackoverflow.com/questions/tagged/arangodb)",
+        "checked": null
+    },
+    {
+        "id": 60,
+        "type": "list_item",
+        "content": "Chat with the community and the developers on Slack:\n[https://arangodb-community.slack.com/](https://arangodb-community.slack.com/)",
+        "checked": null
+    },
+    {
+        "id": 61,
+        "type": "list_item",
+        "content": "Learn more about ArangoDB with our YouTube channel: \n[https://www.youtube.com/@ArangoDB](https://www.youtube.com/@ArangoDB)",
+        "checked": null
+    },
+    {
+        "id": 62,
+        "type": "list_item",
+        "content": "Follow us on Twitter to stay up to date:\n[https://twitter.com/arangodb](https://twitter.com/arangodb)",
+        "checked": null
+    },
+    {
+        "id": 63,
+        "type": "list_item",
+        "content": "Find out more about our community: [https://www.arangodb.com/community](https://www.arangodb.com/community/)",
+        "checked": null
+    },
+    {
+        "id": 64,
+        "type": "list_item",
+        "content": "Other",
+        "checked": null
+    },
+    {
+        "id": 65,
+        "type": "hr",
+        "content": ""
+    },
+    {
+        "id": 66,
+        "type": "paragraph",
+        "content": "Après analyse de mrkdwn.py, voici les améliorations prioritaires :"
+    },
+    {
+        "id": 67,
+        "type": "ordered_list",
+        "content": ""
+    },
+    {
+        "id": 68,
+        "type": "list_item",
+        "content": "Optimisations Parser :",
+        "checked": null
+    },
+    {
+        "id": 69,
+        "type": "code",
+        "content": "# Ajouter support pour:\n- Multi-line code blocks sans délimiteurs (indentation)\n- Tables complexes (merged cells, alignement)\n- Math blocks (LaTeX)\n- Abbreviations\n- Definition lists"
+    },
+    {
+        "id": 70,
+        "type": "ordered_list",
+        "content": ""
+    },
+    {
+        "id": 71,
+        "type": "list_item",
+        "content": "Nouvelle fonctionnalité d'analyse :",
+        "checked": null
+    },
+    {
+        "id": 72,
+        "type": "code",
+        "content": "class ContentAnalyzer:\n    def analyze_structure(self):\n        \"\"\"Structure hiérarchique du document\"\"\"\n    \n    def detect_patterns(self):\n        \"\"\"Motifs récurrents, styles\"\"\"\n        \n    def validate_content(self):\n        \"\"\"Vérification cohérence, formatage\"\"\""
+    },
+    {
+        "id": 73,
+        "type": "ordered_list",
+        "content": ""
+    },
+    {
+        "id": 74,
+        "type": "list_item",
+        "content": "Améliorations InlineParser :",
+        "checked": null
+    },
+    {
+        "id": 75,
+        "type": "code",
+        "content": "class InlineParser:\n    # Ajouter support:\n    - Emojis\n    - Mentions (@user)  \n    - Citations textuelles\n    - Metadata inline"
+    },
+    {
+        "id": 76,
+        "type": "ordered_list",
+        "content": ""
+    },
+    {
+        "id": 77,
+        "type": "list_item",
+        "content": "API utilitaires :",
+        "checked": null
+    },
+    {
+        "id": 78,
+        "type": "code",
+        "content": "def convert_to_html()\ndef convert_to_json()\ndef extract_metadata()\ndef get_document_stats()"
+    },
+    {
+        "id": 79,
+        "type": "ordered_list",
+        "content": ""
+    },
+    {
+        "id": 80,
+        "type": "list_item",
+        "content": "Gestion avancée :\n- Structure AST\n- Streaming parser\n- Validation schémas\n- Cache système\n- Tests unitaires complets",
+        "checked": null
+    },
+    {
+        "id": 81,
+        "type": "list_item",
+        "content": "Focus sur la robustesse et performance pour usages production.",
+        "checked": null
+    }
+]

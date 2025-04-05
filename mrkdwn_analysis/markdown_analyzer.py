@@ -603,6 +603,91 @@ class MarkdownAnalyzer:
                     result.append({"line": token.line, "html": h})
         return result
 
+    def get_tokens_sequential(self):
+        """
+        Retourne une liste séquentielle de tous les éléments trouvés dans le document markdown,
+        chacun avec un identifiant, un type et un contenu.
+        
+        Returns:
+            list: Liste d'éléments au format [{'id': n, 'type': '...', 'content': '...'}]
+        """
+        result = []
+        token_id = 1
+        
+        for token in self.tokens:
+            # Ajouter le token principal
+            token_type = token.type
+            
+            # Convertir certains types pour plus de clarté
+            if token_type == 'header':
+                token_type = f'header{token.level}'
+            
+            # Ajouter le token principal à la liste de résultats
+            result.append({
+                'id': token_id,
+                'type': token_type,
+                'content': token.content
+            })
+            token_id += 1
+            
+            # Traiter les éléments inline si disponibles
+            if token.type in ('paragraph', 'header', 'blockquote'):
+                # Extraire et traiter les formats inline
+                if "emphasis" in token.meta:
+                    for emphasis in token.meta["emphasis"]:
+                        result.append({
+                            'id': token_id,
+                            'type': 'italic',
+                            'content': emphasis
+                        })
+                        token_id += 1
+                
+                if "inline_code" in token.meta:
+                    for code in token.meta["inline_code"]:
+                        result.append({
+                            'id': token_id,
+                            'type': 'inline_code',
+                            'content': code
+                        })
+                        token_id += 1
+                
+                if "text_links" in token.meta:
+                    for link in token.meta["text_links"]:
+                        result.append({
+                            'id': token_id,
+                            'type': 'link',
+                            'content': link["text"],
+                            'url': link["url"]
+                        })
+                        token_id += 1
+                
+                if "image_links" in token.meta:
+                    for img in token.meta["image_links"]:
+                        result.append({
+                            'id': token_id,
+                            'type': 'image',
+                            'content': img["alt_text"],
+                            'url': img["url"]
+                        })
+                        token_id += 1
+            
+            # Traiter les listes
+            if token.type in ('ordered_list', 'unordered_list'):
+                for item in token.meta["items"]:
+                    item_type = 'list_item'
+                    if item.get("task_item"):
+                        item_type = 'task_item'
+                    
+                    result.append({
+                        'id': token_id,
+                        'type': item_type,
+                        'content': item["text"],
+                        'checked': item.get("checked", False) if item_type == 'task_item' else None
+                    })
+                    token_id += 1
+        
+        return result
+
     def count_words(self):
         words = self.text.split()
         return len(words)
@@ -931,6 +1016,15 @@ class MarkdownDocument:
 
     def get_code_blocks(self):
         return self.analyzer.identify_code_blocks().get("Code block", [])
+    
+    def get_sequential_elements(self):
+        """
+        Retourne une liste séquentielle de tous les éléments trouvés dans le document markdown.
+        
+        Returns:
+            list: Liste d'éléments avec id, type et contenu.
+        """
+        return self.analyzer.get_tokens_sequential()
 
 # =============================================================================
 # EXEMPLES D'UTILISATION
@@ -981,6 +1075,20 @@ def main():
         with open(output_json_file, "w", encoding="utf-8") as f:
             json.dump(analysis_output, f, indent=4, ensure_ascii=False)
         logger.info("Analyse exportée vers %s", output_json_file)
+    except Exception as e:
+        logger.error("Erreur lors de l'écriture du fichier JSON : %s", e)
+
+    # Obtenir et afficher les éléments séquentiels
+    sequential_elements = doc.get_sequential_elements()
+    print("\n=== Éléments séquentiels ===")
+    print(json.dumps(sequential_elements[:10], indent=4, ensure_ascii=False))  # Afficher les 10 premiers éléments
+
+    # Sauvegarder tous les éléments séquentiels dans un fichier JSON
+    sequential_output_file = "sequential_elements.json"
+    try:
+        with open(sequential_output_file, "w", encoding="utf-8") as f:
+            json.dump(sequential_elements, f, indent=4, ensure_ascii=False)
+        logger.info("Éléments séquentiels exportés vers %s", sequential_output_file)
     except Exception as e:
         logger.error("Erreur lors de l'écriture du fichier JSON : %s", e)
 

@@ -1,0 +1,73 @@
+{
+    "summary": {
+        "headers": 6,
+        "paragraphs": 10,
+        "blockquotes": 0,
+        "code_blocks": 4,
+        "ordered_lists": 6,
+        "unordered_lists": 34,
+        "tables": 0,
+        "html_blocks": 2,
+        "html_inline_count": 0,
+        "words": 789,
+        "characters": 6022
+    },
+    "headers": [
+        {
+            "line": 7,
+            "level": 1,
+            "text": "ArangoDB"
+        },
+        {
+            "line": 14,
+            "level": 2,
+            "text": "ArangoDB Cloud Service"
+        },
+        {
+            "line": 21,
+            "level": 2,
+            "text": "Getting Started"
+        },
+        {
+            "line": 58,
+            "level": 3,
+            "text": "Community Edition features"
+        },
+        {
+            "line": 80,
+            "level": 3,
+            "text": "Enterprise Edition features"
+        },
+        {
+            "line": 109,
+            "level": 2,
+            "text": "Stay in Contact"
+        }
+    ],
+    "paragraphs": [
+        "ArangoDB is a scalable graph database system to drive value from connected data,\nfaster. Native graphs, an integrated search engine, and JSON support, via a\nsingle query language. ArangoDB runs on-prem, in the cloud – anywhere.",
+        "The [ArangoGraph Insights Platform](https://cloud.arangodb.com/home) is the\nsimplest way to run ArangoDB. You can create deployments on all major cloud\nproviders in many regions with ease.",
+        "**Native Graph** - Store both data and relationships, for faster queries even\nwith multiple levels of joins and deeper insights that simply aren't possible\nwith traditional relational and document database systems.",
+        "**Document Store** - Every node in your graph is a JSON document:\nflexible, extensible, and easily imported from your existing document database.",
+        "**ArangoSearch** - Natively integrated cross-platform indexing, text-search and\nranking engine for information retrieval, optimized for speed and memory.",
+        "ArangoDB is available in a free and open-source **Community Edition**, as well\nas a commercial **Enterprise Edition** with additional features.",
+        "Focus on solving enterprise-scale problems for mission critical workloads using\nsecure graph data. The Enterprise Edition has all the features of the\nCommunity Edition and offers additional features for performance, compliance,\nand security, as well as further query capabilities.",
+        "Packages for all supported platforms can be downloaded from",
+        "For what's new in ArangoDB, see the Release Notes in the\n[Documentation](https://docs.arangodb.com/).",
+        "Après analyse de mrkdwn.py, voici les améliorations prioritaires :"
+    ],
+    "links": {
+        "Text link": [
+            {
+                "line": 17,
+                "text": "ArangoGraph Insights Platform",
+                "url": "https://cloud.arangodb.com/home"
+            },
+            {
+                "line": 106,
+                "text": "Documentation",
+                "url": "https://docs.arangodb.com/"
+            }
+        ]
+    }
+}

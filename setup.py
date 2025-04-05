@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='markdown_analysis',
-    version='0.1.3',
+    version='0.1.5',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='yannbanas',
@@ -15,7 +15,9 @@ setup(
     packages=find_packages(),
     install_requires=[
         'urllib3',
-        'requests'
+        'requests',
+        'beautifulsoup4',
+        'markdownify'
     ],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
