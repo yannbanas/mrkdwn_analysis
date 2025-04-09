@@ -5,14 +5,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='markdown_analysis',
-    version='0.1.5',
+    name='mrkdwn_analysis',  # Changé pour correspondre au nom du dossier
+    version='0.1.6',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='yannbanas',
     author_email='yannbanas@gmail.com',
     url='https://github.com/yannbanas/mrkdwn_analysis',
-    packages=find_packages(),
+    packages=['mrkdwn_analysis'],  # Spécifiez explicitement le package au lieu de find_packages()
     install_requires=[
         'urllib3',
         'requests',
