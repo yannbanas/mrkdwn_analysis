@@ -11,8 +11,12 @@ import re
 import logging
 import os
 import json
+import time
 from collections import defaultdict, deque
 from urllib.parse import urljoin, urlparse
+from functools import lru_cache, wraps
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional, Union, Callable, Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -21,6 +25,35 @@ from markdownify import markdownify as md
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# UTILITAIRES ET DECORATEURS DE PERFORMANCE
+# =============================================================================
+
+def cached_property(func):
+    """Decorator for cached properties to improve performance."""
+    attr_name = '_cache_' + func.__name__
+
+    @wraps(func)
+    def wrapper(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, func(self))
+        return getattr(self, attr_name)
+
+    return property(wrapper)
+
+
+def timed_execution(func):
+    """Decorator to measure execution time of functions."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start
+        logger.debug(f"{func.__name__} executed in {elapsed:.4f}s")
+        return result
+    return wrapper
+
 
 # =============================================================================
 # PARTIE 1 : PARSING ET ANALYSE DU MARKDOWN / MDX
@@ -409,7 +442,7 @@ class MarkdownParser:
             self.tokens.append(BlockToken('paragraph', content=content, line=start+1))
 
 class MarkdownAnalyzer:
-    def __init__(self, file_path, encoding='utf-8'):
+    def __init__(self, file_path, encoding='utf-8', cache_enabled=True):
         with open(file_path, 'r', encoding=encoding) as f:
             self.text = f.read()
         parser = MarkdownParser(self.text)
@@ -418,16 +451,23 @@ class MarkdownAnalyzer:
         self.footnotes = parser.footnotes
         self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
         self._parse_inline_tokens()
+        self.cache_enabled = cache_enabled
+        self._clear_cache()
+
+    def _clear_cache(self):
+        """Clear all cached results."""
+        self._method_cache = {}
 
     @classmethod
-    def from_url(cls, url, encoding='utf-8'):
+    def from_url(cls, url, encoding='utf-8', cache_enabled=True):
         """
         Create a MarkdownAnalyzer from a URL.
-        
+
         Args:
             url (str): The URL to fetch the markdown content from.
             encoding (str): The encoding to use for the content.
-            
+            cache_enabled (bool): Enable caching of parsed results.
+
         Returns:
             MarkdownAnalyzer: An analyzer for the markdown content.
         """
@@ -435,10 +475,10 @@ class MarkdownAnalyzer:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             text = response.text
-            
+
             parser = MarkdownParser(text)
             tokens = parser.parse()
-            
+
             analyzer = cls.__new__(cls)
             analyzer.text = text
             analyzer.tokens = tokens
@@ -446,27 +486,30 @@ class MarkdownAnalyzer:
             analyzer.footnotes = parser.footnotes
             analyzer.inline_parser = InlineParser(references=analyzer.references, footnotes=analyzer.footnotes)
             analyzer._parse_inline_tokens()
-            
+            analyzer.cache_enabled = cache_enabled
+            analyzer._clear_cache()
+
             return analyzer
         except requests.RequestException as exc:
             logger.error(f"Error fetching URL {url}: {exc}")
             raise
 
     @classmethod
-    def from_string(cls, markdown_string, encoding='utf-8'):
+    def from_string(cls, markdown_string, encoding='utf-8', cache_enabled=True):
         """
         Create a MarkdownAnalyzer directly from a markdown string.
-        
+
         Args:
             markdown_string (str): The markdown content as a string.
             encoding (str): The encoding of the string.
-            
+            cache_enabled (bool): Enable caching of parsed results.
+
         Returns:
             MarkdownAnalyzer: An analyzer for the markdown content.
         """
         parser = MarkdownParser(markdown_string)
         tokens = parser.parse()
-        
+
         analyzer = cls.__new__(cls)
         analyzer.text = markdown_string
         analyzer.tokens = tokens
@@ -474,7 +517,9 @@ class MarkdownAnalyzer:
         analyzer.footnotes = parser.footnotes
         analyzer.inline_parser = InlineParser(references=analyzer.references, footnotes=analyzer.footnotes)
         analyzer._parse_inline_tokens()
-        
+        analyzer.cache_enabled = cache_enabled
+        analyzer._clear_cache()
+
         return analyzer
 
     def _parse_inline_tokens(self):
@@ -722,6 +767,414 @@ class MarkdownAnalyzer:
         }
         return analysis
 
+    # =============================================================================
+    # NOUVELLES FONCTIONNALITÉS - RECHERCHE ET FILTRAGE
+    # =============================================================================
+
+    def search_content(self, pattern: str, case_sensitive: bool = False, regex: bool = False) -> List[Dict]:
+        """
+        Search for content across all elements.
+
+        Args:
+            pattern: Search pattern (string or regex)
+            case_sensitive: Whether search should be case sensitive
+            regex: Whether pattern is a regex
+
+        Returns:
+            List of matching elements with context
+        """
+        flags = 0 if case_sensitive else re.IGNORECASE
+        search_re = re.compile(pattern, flags) if regex else re.compile(re.escape(pattern), flags)
+
+        results = []
+        for token in self.tokens:
+            if token.content and search_re.search(token.content):
+                results.append({
+                    'type': token.type,
+                    'line': token.line,
+                    'content': token.content,
+                    'level': token.level if hasattr(token, 'level') else None
+                })
+
+        return results
+
+    def filter_by_type(self, element_type: str) -> List[BlockToken]:
+        """
+        Filter tokens by type.
+
+        Args:
+            element_type: Type of element to filter (e.g., 'header', 'paragraph', 'code')
+
+        Returns:
+            List of matching tokens
+        """
+        return [token for token in self.tokens if token.type == element_type]
+
+    def find_headers_by_level(self, level: int) -> List[Dict]:
+        """
+        Find all headers of a specific level.
+
+        Args:
+            level: Header level (1-6)
+
+        Returns:
+            List of headers at the specified level
+        """
+        all_headers = self.identify_headers().get("Header", [])
+        return [h for h in all_headers if h['level'] == level]
+
+    def get_table_of_contents(self, max_level: int = 6) -> List[Dict]:
+        """
+        Generate a table of contents from headers.
+
+        Args:
+            max_level: Maximum header level to include
+
+        Returns:
+            List of TOC entries with hierarchy
+        """
+        headers = self.identify_headers().get("Header", [])
+        toc = []
+        for header in headers:
+            if header['level'] <= max_level:
+                toc.append({
+                    'level': header['level'],
+                    'text': header['text'],
+                    'line': header['line'],
+                    'indent': '  ' * (header['level'] - 1)
+                })
+        return toc
+
+    # =============================================================================
+    # EXPORT VERS DIFFÉRENTS FORMATS
+    # =============================================================================
+
+    def export_to_json(self, include_metadata: bool = True) -> str:
+        """
+        Export complete analysis to JSON format.
+
+        Args:
+            include_metadata: Include metadata like line numbers
+
+        Returns:
+            JSON string representation
+        """
+        export_data = {
+            'summary': self.analyse(),
+            'headers': self.identify_headers(),
+            'paragraphs': self.identify_paragraphs(),
+            'code_blocks': self.identify_code_blocks(),
+            'lists': self.identify_lists(),
+            'tables': self.identify_tables(),
+            'links': self.identify_links(),
+            'blockquotes': self.identify_blockquotes()
+        }
+
+        if include_metadata:
+            export_data['metadata'] = {
+                'total_lines': len(self.text.split('\n')),
+                'references_count': len(self.references),
+                'footnotes_count': len(self.footnotes)
+            }
+
+        return json.dumps(export_data, indent=2, ensure_ascii=False)
+
+    def export_to_html(self, include_style: bool = True) -> str:
+        """
+        Export markdown content to HTML.
+
+        Args:
+            include_style: Include basic CSS styling
+
+        Returns:
+            HTML string
+        """
+        html_parts = []
+
+        if include_style:
+            html_parts.append("""
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                       max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+                code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
+                pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+                blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 20px; color: #666; }
+                table { border-collapse: collapse; width: 100%; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f4f4f4; }
+            </style>
+            """)
+
+        for token in self.tokens:
+            if token.type == 'header':
+                html_parts.append(f'<h{token.level}>{token.content}</h{token.level}>')
+            elif token.type == 'paragraph':
+                html_parts.append(f'<p>{token.content}</p>')
+            elif token.type == 'code':
+                lang = token.meta.get('language', '')
+                html_parts.append(f'<pre><code class="language-{lang}">{token.content}</code></pre>')
+            elif token.type == 'blockquote':
+                html_parts.append(f'<blockquote>{token.content}</blockquote>')
+            elif token.type == 'table':
+                html_parts.append(self._table_to_html(token.meta))
+
+        return '\n'.join(html_parts)
+
+    def _table_to_html(self, table_meta: Dict) -> str:
+        """Convert table metadata to HTML."""
+        html = ['<table>']
+        html.append('<thead><tr>')
+        for cell in table_meta['header']:
+            html.append(f'<th>{cell}</th>')
+        html.append('</tr></thead>')
+        html.append('<tbody>')
+        for row in table_meta['rows']:
+            html.append('<tr>')
+            for cell in row:
+                html.append(f'<td>{cell}</td>')
+            html.append('</tr>')
+        html.append('</tbody></table>')
+        return ''.join(html)
+
+    def export_to_plain_text(self, strip_formatting: bool = True) -> str:
+        """
+        Export to plain text, optionally stripping markdown formatting.
+
+        Args:
+            strip_formatting: Remove markdown syntax
+
+        Returns:
+            Plain text content
+        """
+        if not strip_formatting:
+            return self.text
+
+        plain_parts = []
+        for token in self.tokens:
+            if token.content:
+                # Remove markdown formatting
+                text = token.content
+                text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)  # Bold
+                text = re.sub(r'\*(.+?)\*', r'\1', text)  # Italic
+                text = re.sub(r'`(.+?)`', r'\1', text)  # Inline code
+                text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)  # Links
+                plain_parts.append(text)
+
+        return '\n\n'.join(plain_parts)
+
+    # =============================================================================
+    # STATISTIQUES AVANCÉES
+    # =============================================================================
+
+    def get_reading_time(self, words_per_minute: int = 200) -> Dict:
+        """
+        Calculate estimated reading time.
+
+        Args:
+            words_per_minute: Average reading speed
+
+        Returns:
+            Dictionary with reading time estimates
+        """
+        word_count = self.count_words()
+        minutes = word_count / words_per_minute
+
+        return {
+            'words': word_count,
+            'minutes': round(minutes, 1),
+            'formatted': f"{int(minutes)} min read" if minutes >= 1 else "< 1 min read"
+        }
+
+    def get_complexity_metrics(self) -> Dict:
+        """
+        Calculate document complexity metrics.
+
+        Returns:
+            Dictionary with complexity indicators
+        """
+        words = self.count_words()
+        chars = self.count_characters()
+        sentences = len(re.findall(r'[.!?]+', self.text))
+        paragraphs = len(self.identify_paragraphs().get("Paragraph", []))
+
+        avg_word_length = chars / words if words > 0 else 0
+        avg_sentence_length = words / sentences if sentences > 0 else 0
+
+        return {
+            'total_words': words,
+            'total_sentences': sentences,
+            'total_paragraphs': paragraphs,
+            'avg_word_length': round(avg_word_length, 2),
+            'avg_sentence_length': round(avg_sentence_length, 2),
+            'complexity_score': round((avg_word_length + avg_sentence_length) / 2, 2)
+        }
+
+    def get_link_statistics(self) -> Dict:
+        """
+        Get detailed statistics about links in the document.
+
+        Returns:
+            Dictionary with link statistics
+        """
+        links = self.identify_links()
+        text_links = links.get("Text link", [])
+        image_links = links.get("Image link", [])
+
+        external_links = []
+        internal_links = []
+
+        for link in text_links:
+            url = link['url']
+            if url.startswith(('http://', 'https://')):
+                external_links.append(url)
+            else:
+                internal_links.append(url)
+
+        return {
+            'total_links': len(text_links),
+            'total_images': len(image_links),
+            'external_links': len(external_links),
+            'internal_links': len(internal_links),
+            'unique_domains': len(set(urlparse(url).netloc for url in external_links if urlparse(url).netloc))
+        }
+
+    # =============================================================================
+    # VALIDATION ET VÉRIFICATION AMÉLIORÉES
+    # =============================================================================
+
+    def check_links(self, timeout: int = 5, max_workers: int = 10, follow_redirects: bool = True) -> List[Dict]:
+        """
+        Check all links in the document with parallel execution for better performance.
+
+        Args:
+            timeout: Request timeout in seconds
+            max_workers: Maximum number of concurrent requests
+            follow_redirects: Whether to follow redirects
+
+        Returns:
+            List of broken/invalid links
+        """
+        links = self.identify_links().get("Text link", [])
+        broken_links = []
+
+        def check_single_link(link_info):
+            url = link_info['url']
+            # Skip non-http links
+            if not url.startswith(('http://', 'https://')):
+                return None
+
+            try:
+                response = requests.head(url, timeout=timeout, allow_redirects=follow_redirects)
+                # Some servers don't respond to HEAD, try GET
+                if response.status_code == 405:
+                    response = requests.get(url, timeout=timeout, allow_redirects=follow_redirects, stream=True)
+
+                if response.status_code >= 400:
+                    return {
+                        'url': url,
+                        'line': link_info['line'],
+                        'status_code': response.status_code,
+                        'text': link_info['text']
+                    }
+            except requests.RequestException as e:
+                return {
+                    'url': url,
+                    'line': link_info['line'],
+                    'error': str(e),
+                    'text': link_info['text']
+                }
+
+            return None
+
+        # Use ThreadPoolExecutor for parallel link checking
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_link = {executor.submit(check_single_link, link): link for link in links}
+
+            for future in as_completed(future_to_link):
+                result = future.result()
+                if result:
+                    broken_links.append(result)
+
+        return broken_links
+
+    def validate_structure(self) -> Dict:
+        """
+        Validate document structure and return potential issues.
+
+        Returns:
+            Dictionary with validation results
+        """
+        issues = []
+        headers = self.identify_headers().get("Header", [])
+
+        # Check for missing H1
+        h1_count = sum(1 for h in headers if h['level'] == 1)
+        if h1_count == 0:
+            issues.append({'type': 'warning', 'message': 'No H1 header found'})
+        elif h1_count > 1:
+            issues.append({'type': 'warning', 'message': f'Multiple H1 headers found ({h1_count})'})
+
+        # Check for header level skipping
+        for i in range(1, len(headers)):
+            prev_level = headers[i-1]['level']
+            curr_level = headers[i]['level']
+            if curr_level > prev_level + 1:
+                issues.append({
+                    'type': 'warning',
+                    'message': f'Header level skip from H{prev_level} to H{curr_level} at line {headers[i]["line"]}'
+                })
+
+        # Check for empty links
+        links = self.identify_links()
+        for link in links.get("Text link", []):
+            if not link['url'] or link['url'].strip() == '':
+                issues.append({
+                    'type': 'error',
+                    'message': f'Empty link at line {link["line"]}'
+                })
+
+        return {
+            'valid': len([i for i in issues if i['type'] == 'error']) == 0,
+            'issues': issues,
+            'score': max(0, 100 - (len(issues) * 10))
+        }
+
+    # =============================================================================
+    # MÉTHODES UTILITAIRES SUPPLÉMENTAIRES
+    # =============================================================================
+
+    def get_word_frequency(self, top_n: int = 20, min_word_length: int = 4) -> List[tuple]:
+        """
+        Get most frequent words in the document.
+
+        Args:
+            top_n: Number of top words to return
+            min_word_length: Minimum word length to consider
+
+        Returns:
+            List of (word, frequency) tuples
+        """
+        words = re.findall(r'\b\w+\b', self.text.lower())
+        words = [w for w in words if len(w) >= min_word_length]
+
+        from collections import Counter
+        word_freq = Counter(words)
+
+        return word_freq.most_common(top_n)
+
+    def extract_code_by_language(self, language: str) -> List[Dict]:
+        """
+        Extract all code blocks of a specific language.
+
+        Args:
+            language: Programming language to filter
+
+        Returns:
+            List of matching code blocks
+        """
+        code_blocks = self.identify_code_blocks().get("Code block", [])
+        return [cb for cb in code_blocks if cb['language'] == language]
+
 # --- MDX Parsing ---
 
 class MDXMarkdownParser(MarkdownParser):
@@ -933,31 +1386,35 @@ class MarkdownDocument:
     """
     Classe d'abstraction pour un document Markdown.
     Elle encapsule l'analyse et fournit des méthodes simples pour accéder aux informations.
+
+    Cette classe est maintenant enrichie avec des fonctionnalités avancées pour une meilleure
+    performance et polyvalence, tout en maintenant la rétrocompatibilité.
     """
-    def __init__(self, source, from_url=False, from_string=False, encoding='utf-8'):
+    def __init__(self, source, from_url=False, from_string=False, encoding='utf-8', cache_enabled=True):
         """
         Initialize a Markdown document from different sources.
-        
+
         Args:
             source (str): Either a file path, URL, or markdown string based on the flags.
             from_url (bool): If True, treat source as a URL.
             from_string (bool): If True, treat source as a markdown string directly.
             encoding (str): Text encoding to use.
+            cache_enabled (bool): Enable caching for better performance.
         """
         if from_url:
-            self.analyzer = MarkdownAnalyzer.from_url(source, encoding=encoding)
+            self.analyzer = MarkdownAnalyzer.from_url(source, encoding=encoding, cache_enabled=cache_enabled)
         elif from_string:
-            self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding)
+            self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding, cache_enabled=cache_enabled)
         else:
             try:
                 # Try to open source as a file
                 with open(source, 'r', encoding=encoding) as f:
                     text = f.read()
-                self.analyzer = MarkdownAnalyzer.from_string(text, encoding=encoding)
+                self.analyzer = MarkdownAnalyzer.from_string(text, encoding=encoding, cache_enabled=cache_enabled)
             except (FileNotFoundError, IOError):
                 # Fall back to treating source as raw text
                 logger.warning("Source not found as file, treating as string.")
-                self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding)
+                self.analyzer = MarkdownAnalyzer.from_string(source, encoding=encoding, cache_enabled=cache_enabled)
     
     @classmethod
     def from_file(cls, file_path, encoding='utf-8'):
@@ -1020,11 +1477,98 @@ class MarkdownDocument:
     def get_sequential_elements(self):
         """
         Retourne une liste séquentielle de tous les éléments trouvés dans le document markdown.
-        
+
         Returns:
             list: Liste d'éléments avec id, type et contenu.
         """
         return self.analyzer.get_tokens_sequential()
+
+    # =============================================================================
+    # NOUVELLES MÉTHODES - RECHERCHE ET FILTRAGE
+    # =============================================================================
+
+    def search(self, pattern: str, case_sensitive: bool = False, regex: bool = False) -> List[Dict]:
+        """
+        Search for content in the document.
+
+        Args:
+            pattern: Search pattern
+            case_sensitive: Case sensitive search
+            regex: Use regex pattern
+
+        Returns:
+            List of matching elements
+        """
+        return self.analyzer.search_content(pattern, case_sensitive, regex)
+
+    def find_headers_by_level(self, level: int) -> List[Dict]:
+        """Find all headers of a specific level."""
+        return self.analyzer.find_headers_by_level(level)
+
+    def get_table_of_contents(self, max_level: int = 6) -> List[Dict]:
+        """Generate table of contents."""
+        return self.analyzer.get_table_of_contents(max_level)
+
+    # =============================================================================
+    # EXPORT VERS DIFFÉRENTS FORMATS
+    # =============================================================================
+
+    def to_json(self, include_metadata: bool = True) -> str:
+        """Export document analysis to JSON."""
+        return self.analyzer.export_to_json(include_metadata)
+
+    def to_html(self, include_style: bool = True) -> str:
+        """Export document to HTML."""
+        return self.analyzer.export_to_html(include_style)
+
+    def to_plain_text(self, strip_formatting: bool = True) -> str:
+        """Export to plain text."""
+        return self.analyzer.export_to_plain_text(strip_formatting)
+
+    # =============================================================================
+    # STATISTIQUES AVANCÉES
+    # =============================================================================
+
+    def get_reading_time(self, words_per_minute: int = 200) -> Dict:
+        """Calculate estimated reading time."""
+        return self.analyzer.get_reading_time(words_per_minute)
+
+    def get_complexity_metrics(self) -> Dict:
+        """Get document complexity metrics."""
+        return self.analyzer.get_complexity_metrics()
+
+    def get_link_statistics(self) -> Dict:
+        """Get detailed link statistics."""
+        return self.analyzer.get_link_statistics()
+
+    def get_word_frequency(self, top_n: int = 20, min_word_length: int = 4) -> List[tuple]:
+        """Get most frequent words."""
+        return self.analyzer.get_word_frequency(top_n, min_word_length)
+
+    # =============================================================================
+    # VALIDATION ET VÉRIFICATION
+    # =============================================================================
+
+    def check_links(self, timeout: int = 5, max_workers: int = 10) -> List[Dict]:
+        """
+        Check all links in parallel for broken links.
+
+        Args:
+            timeout: Request timeout
+            max_workers: Number of parallel workers
+
+        Returns:
+            List of broken links
+        """
+        return self.analyzer.check_links(timeout, max_workers)
+
+    def validate_structure(self) -> Dict:
+        """Validate document structure."""
+        return self.analyzer.validate_structure()
+
+    def extract_code_by_language(self, language: str) -> List[Dict]:
+        """Extract code blocks by programming language."""
+        return self.analyzer.extract_code_by_language(language)
 
 # =============================================================================
 # EXEMPLES D'UTILISATION

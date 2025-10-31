@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='mrkdwn_analysis',  # Changé pour correspondre au nom du dossier
-    version='0.1.6',
+    version='0.2.0',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='yannbanas',
@@ -20,9 +20,12 @@ setup(
         'markdownify'
     ],
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Text Processing :: Markup',
     ],
 )
