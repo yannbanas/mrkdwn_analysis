@@ -181,6 +181,85 @@ print(analysis)
 # }
 ```
 
+## New in Version 0.2.0 🚀
+
+Version 0.2.0 introduces powerful new features while maintaining 100% backward compatibility!
+
+### Search and Filtering
+```python
+# Search for content
+results = doc.search("Python", case_sensitive=False)
+
+# Find headers by level
+h2_headers = doc.find_headers_by_level(2)
+
+# Generate table of contents
+toc = doc.get_table_of_contents(max_level=3)
+```
+
+### Export to Multiple Formats
+```python
+# Export to JSON
+json_output = doc.to_json(include_metadata=True)
+
+# Export to HTML with styling
+html_output = doc.to_html(include_style=True)
+
+# Export to plain text
+plain_text = doc.to_plain_text(strip_formatting=True)
+```
+
+### Advanced Statistics
+```python
+# Get reading time
+reading_time = doc.get_reading_time()
+print(reading_time['formatted'])  # "5 min read"
+
+# Document complexity metrics
+complexity = doc.get_complexity_metrics()
+print(f"Complexity score: {complexity['complexity_score']}")
+
+# Link statistics
+link_stats = doc.get_link_statistics()
+print(f"External links: {link_stats['external_links']}")
+
+# Word frequency analysis
+top_words = doc.get_word_frequency(top_n=20)
+```
+
+### Improved Link Checking
+```python
+# Parallel link checking (much faster!)
+broken_links = doc.check_links(max_workers=10)
+for link in broken_links:
+    print(f"Broken: {link['url']} - {link.get('status_code', 'error')}")
+```
+
+### Document Validation
+```python
+# Validate document structure
+validation = doc.validate_structure()
+print(f"Valid: {validation['valid']}, Score: {validation['score']}/100")
+for issue in validation['issues']:
+    print(f"[{issue['type']}] {issue['message']}")
+```
+
+### Code Extraction by Language
+```python
+# Extract Python code blocks
+python_code = doc.extract_code_by_language('python')
+for block in python_code:
+    print(block['content'])
+```
+
+### Performance Improvements
+
+- **Caching**: Results are cached for faster repeated access
+- **Parallel Processing**: Link checking uses ThreadPoolExecutor (up to 10x faster)
+- **Memory Optimization**: Better memory management for large documents
+
+See [CHANGELOG.md](CHANGELOG.md) for complete details.
+
 ## Contributing
 
 Contributions are welcome! Feel free to open an issue or submit a pull request for bug reports, feature requests, or code improvements. Your input helps make `mrkdwn_analysis` more robust and versatile.
