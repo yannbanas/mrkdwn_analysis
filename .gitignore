@@ -1,6 +1,17 @@
+# Build and distribution
 build/
 dist/
 markdown_analysis.egg-info/
+mrkdwn_analysis.egg-info/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Test files
 mrkdwn.py
 arangodb.md
 backup_1401.txt
@@ -10,7 +21,14 @@ test_mrkdwn.py
 TestEmojiMarkdown.py
 TestMarkdownTableParsing.py
 TestTabsMDX.py
-TestMarkdownTableParsing.py
 tabs_content_invalid.mdx
 markdown_analyzer.rar
 vv.txt
+temp_markdown.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
