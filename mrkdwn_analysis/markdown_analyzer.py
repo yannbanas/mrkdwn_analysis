@@ -442,9 +442,33 @@ class MarkdownParser:
             self.tokens.append(BlockToken('paragraph', content=content, line=start+1))
 
 class MarkdownAnalyzer:
-    def __init__(self, file_path, encoding='utf-8', cache_enabled=True):
-        with open(file_path, 'r', encoding=encoding) as f:
-            self.text = f.read()
+    def __init__(self, file_path=None, file_text=None, encoding='utf-8', cache_enabled=True):
+        """
+        Initialize MarkdownAnalyzer with either a file path or markdown text.
+        
+        Args:
+            file_path (str, optional): Path to the markdown file.
+            file_text (str, optional): Markdown text content.
+            encoding (str): Text encoding (default: 'utf-8').
+            cache_enabled (bool): Enable caching (default: True).
+            
+        Raises:
+            ValueError: If neither or both file_path and file_text are provided.
+        """
+        # Validation: exactly one of file_path or file_text must be provided
+        if file_path is None and file_text is None:
+            raise ValueError("Either 'file_path' or 'file_text' must be provided")
+        if file_path is not None and file_text is not None:
+            raise ValueError("Cannot specify both 'file_path' and 'file_text'")
+        
+        # Read text from file or use provided text
+        if file_path is not None:
+            with open(file_path, 'r', encoding=encoding) as f:
+                self.text = f.read()
+        else:
+            self.text = file_text
+            
+        # Parse the markdown text
         parser = MarkdownParser(self.text)
         self.tokens = parser.parse()
         self.references = parser.references
