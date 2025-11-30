@@ -437,6 +437,11 @@ class MarkdownParser:
                 break
             lines.append(line)
             self.pos += 1
+        
+        # 🔧 FIX ANTI-BOUCLE INFINIE
+        if not lines and self.pos < self.length:
+            self.pos += 1
+        
         content = "\n".join(lines).strip()
         if content:
             self.tokens.append(BlockToken('paragraph', content=content, line=start+1))
